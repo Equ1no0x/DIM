@@ -65,7 +65,8 @@ export default (env: Env) => {
   }
 
   const buildTime = Date.now();
-  const publicPath = process.env.PUBLIC_PATH ?? '/';
+  const publicPath =
+    process.env.PUBLIC_PATH ?? (process.env.NODE_ENV === 'production' ? '/DIM/' : '/');
 
   const featureFlags = makeFeatureFlags(env);
   const contentSecurityPolicy = csp(env.name, featureFlags, version);
