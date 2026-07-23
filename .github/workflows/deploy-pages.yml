@@ -41,6 +41,7 @@ jobs:
         run: pnpm build:release
         env:
           NODE_OPTIONS: "--max_old_space_size=8192"
+          PUBLIC_PATH: "/DIM/"
           WEB_API_KEY: ${{ secrets.WEB_API_KEY }}
           WEB_OAUTH_CLIENT_ID: ${{ secrets.WEB_OAUTH_CLIENT_ID }}
           WEB_OAUTH_CLIENT_SECRET: ${{ secrets.WEB_OAUTH_CLIENT_SECRET }}

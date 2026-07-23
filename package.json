@@ -56,14 +56,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/DestinyItemManager/DIM.git"
+    "url": "https://github.com/Equ1no0x/DIM.git"
   },
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/DestinyItemManager/DIM/issues"
+    "url": "https://github.com/Equ1no0x/DIM/issues"
   },
-  "homepage": "https://destinyitemmanager.com",
+  "homepage": "https://equ1no0x.github.io/DIM",
   "browserslist": [
     "Chrome >= 126",
     "Edge >= 126",
