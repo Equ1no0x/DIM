@@ -18,6 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: github-pages
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -40,6 +41,10 @@ jobs:
         run: pnpm build:release
         env:
           NODE_OPTIONS: "--max_old_space_size=8192"
+          WEB_API_KEY: ${{ secrets.WEB_API_KEY }}
+          WEB_OAUTH_CLIENT_ID: ${{ secrets.WEB_OAUTH_CLIENT_ID }}
+          WEB_OAUTH_CLIENT_SECRET: ${{ secrets.WEB_OAUTH_CLIENT_SECRET }}
+          DIM_API_KEY: ${{ secrets.DIM_API_KEY }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
