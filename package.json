@@ -1,6 +1,6 @@
 {
   "name": "dim",
-  "version": "8.134.0",
+  "version": "8.135.0",
   "description": "An item manager for Destiny.",
   "main": "app/index.html",
   "private": true,
@@ -56,14 +56,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/DestinyItemManager/DIM.git"
+    "url": "https://github.com/Equ1no0x/DIM.git"
   },
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/DestinyItemManager/DIM/issues"
+    "url": "https://github.com/Equ1no0x/DIM/issues"
   },
-  "homepage": "https://destinyitemmanager.com",
+  "homepage": "https://equ1no0x.github.io/DIM",
   "browserslist": [
     "Chrome >= 126",
     "Edge >= 126",
@@ -176,7 +176,6 @@
     "svgo-loader": "^5.0.0",
     "ts-checker-rspack-plugin": "^1.5.2",
     "ts-jest": "^29.4.11",
-    "ts-loader": "^9.6.2",
     "ts-unused-exports": "^11.0.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",

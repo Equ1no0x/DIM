@@ -65,7 +65,8 @@ export default (env: Env) => {
   }
 
   const buildTime = Date.now();
-  const publicPath = process.env.PUBLIC_PATH ?? '/';
+  const publicPath =
+    process.env.PUBLIC_PATH ?? (process.env.NODE_ENV === 'production' ? '/DIM/' : '/');
 
   const featureFlags = makeFeatureFlags(env);
   const contentSecurityPolicy = csp(env.name, featureFlags, version);
@@ -109,7 +110,8 @@ export default (env: Env) => {
     // Dev server
     devServer: env.dev
       ? {
-          host: process.env.DOCKER ? '0.0.0.0' : 'localhost',
+          host: process.env.DOCKER || process.env.HOST ? '0.0.0.0' : 'localhost',
+          port: process.env.PORT ? parseInt(process.env.PORT, 10) : 8080,
           allowedHosts: 'all',
           server: {
             type: 'https',
@@ -376,12 +378,7 @@ export default (env: Env) => {
                 cacheDirectory: true,
               },
             },
-            env.dev
-              ? null
-              : {
-                  loader: 'ts-loader',
-                },
-          ].filter((l) => l !== null),
+          ],
         },
         // All output '.js' files will have any sourcemaps re-processed by 'source-map-loader'.
         {
@@ -550,6 +547,8 @@ export default (env: Env) => {
       $DIM_WEB_CLIENT_ID: JSON.stringify(process.env.WEB_OAUTH_CLIENT_ID),
       $DIM_WEB_CLIENT_SECRET: JSON.stringify(process.env.WEB_OAUTH_CLIENT_SECRET),
       $DIM_API_KEY: JSON.stringify(process.env.DIM_API_KEY),
+      'process.env.GOOGLE_DRIVE_CLIENT_ID': JSON.stringify(process.env.GOOGLE_DRIVE_CLIENT_ID),
+      'process.env.GOOGLE_DRIVE_API_KEY': JSON.stringify(process.env.GOOGLE_DRIVE_API_KEY),
       $ANALYTICS_PROPERTY: JSON.stringify(analyticsProperty),
       $PUBLIC_PATH: JSON.stringify(publicPath),
 

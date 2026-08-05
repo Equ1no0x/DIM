@@ -9,14 +9,15 @@ import { download } from 'app/utils/download';
 export function exportLocalData(): ThunkResult<ExportResponse> {
   return async (_dispatch, getState) => {
     const dimApiState = getState().dimApi;
-    const exportResponse: ExportResponse = {
+    const exportResponse = {
       settings: dimApiState.settings,
       loadouts: [],
       tags: [],
       triumphs: [],
       itemHashTags: [],
       searches: [],
-    };
+      globalSettings: dimApiState.globalSettings,
+    } as ExportResponse & { globalSettings: typeof dimApiState.globalSettings };
 
     for (const profileKey in dimApiState.profiles) {
       if (Object.prototype.hasOwnProperty.call(dimApiState.profiles, profileKey)) {

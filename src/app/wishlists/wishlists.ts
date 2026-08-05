@@ -24,6 +24,22 @@ const targetPCHs = [
   PlugCategoryHashes.Origins,
 ];
 
+const optionalPCHs = [
+  PlugCategoryHashes.Bowstrings,
+  PlugCategoryHashes.Batteries,
+  PlugCategoryHashes.Blades,
+  PlugCategoryHashes.Tubes,
+  PlugCategoryHashes.Scopes,
+  PlugCategoryHashes.Hafts,
+  PlugCategoryHashes.Guards,
+  PlugCategoryHashes.Barrels,
+  PlugCategoryHashes.Arrows,
+  PlugCategoryHashes.Magazines,
+  PlugCategoryHashes.MagazinesGl,
+  PlugCategoryHashes.Rails,
+  PlugCategoryHashes.Bolts,
+];
+
 export const enum UiWishListRoll {
   Good = 1,
   Bad,
@@ -49,6 +65,13 @@ export interface InventoryWishListRoll {
   notes: string | undefined;
   /** Is this an undesirable roll? */
   isUndesirable?: boolean;
+  /** Individual matching rolls, for cycling through them in the UI */
+  matchingRolls: {
+    wishListPerks: Set<number>;
+    isUndesirable?: boolean;
+    notes?: string;
+    matchingRolls?: Set<number>;
+  }[];
 }
 
 /**
@@ -135,8 +158,12 @@ function getWishListPlugs(item: DimItem, wishListRoll: WishListRoll): Set<number
  */
 function allDesiredPerksExist(item: DimItem, wishListRoll: WishListRoll): boolean {
   if (wishListRoll.isExpertMode) {
+    let allIncluded = true;
+    let hasNonOptional = false;
+
     for (const recommendedPerk of wishListRoll.recommendedPerks) {
       let included = false;
+      let isOptional = false;
 
       // this function serves only getInventoryWishListRoll,
       // which has already ensured item.sockets exists
@@ -149,6 +176,7 @@ function allDesiredPerksExist(item: DimItem, wishListRoll: WishListRoll): boolea
               normalizeToEnhanced(plug.plugDef.hash) === recommendedPerk
             ) {
               included = true;
+              isOptional = optionalPCHs.includes(plug.plugDef.plug.plugCategoryHash);
               break outer;
             }
           }
@@ -156,10 +184,34 @@ function allDesiredPerksExist(item: DimItem, wishListRoll: WishListRoll): boolea
       }
 
       if (!included) {
-        return false;
+        allIncluded = false;
+        // It's missing. Check if it's in the item's potential plugs to see if it's optional.
+        for (const s of item.sockets!.allSockets) {
+          const matchingPlug = s.plugSet?.plugs.find(
+            (plug) =>
+              normalizeToUnenhanced(plug.plugDef.hash) === recommendedPerk ||
+              normalizeToEnhanced(plug.plugDef.hash) === recommendedPerk,
+          );
+          if (matchingPlug) {
+            isOptional = optionalPCHs.includes(matchingPlug.plugDef.plug.plugCategoryHash);
+            break;
+          }
+        }
+
+        // If it's missing and NOT optional, the roll fails entirely.
+        if (!isOptional) {
+          return false;
+        }
+      }
+
+      if (!isOptional) {
+        hasNonOptional = true;
       }
     }
-    return true;
+
+    // At this point, any missing perks were optional.
+    // If we missed something but the wishlist ONLY had optional perks, we shouldn't match.
+    return allIncluded || hasNonOptional;
   }
 
   return item.sockets!.allSockets.every(
@@ -175,17 +227,49 @@ export function getInventoryWishListRoll(
   item: DimItem,
   wishListRolls: Map<number, WishListRoll[]>,
 ): InventoryWishListRoll | undefined {
+  const matchingRolls: WishListRoll[] = [];
+
   // It could be under the item hash, the wildcard, or any of the item's categories
   for (const hash of [item.hash, DimWishList.WildcardItemId, ...item.itemCategoryHashes]) {
-    const matchingWishListRoll = wishListRolls
-      .get(hash)
-      ?.find((cr) => allDesiredPerksExist(item, cr));
-    if (matchingWishListRoll) {
-      return {
-        wishListPerks: getWishListPlugs(item, matchingWishListRoll),
-        notes: matchingWishListRoll.notes,
-        isUndesirable: matchingWishListRoll.isUndesirable,
-      };
+    const rollsForHash = wishListRolls.get(hash);
+    if (rollsForHash) {
+      for (const roll of rollsForHash) {
+        if (allDesiredPerksExist(item, roll)) {
+          matchingRolls.push(roll);
+        }
+      }
     }
   }
+
+  if (matchingRolls.length === 0) {
+    return undefined;
+  }
+
+  const wishListPerks = new Set<number>();
+  const notesSet = new Set<string>();
+  const matchingRollsData: InventoryWishListRoll['matchingRolls'] = [];
+  let isUndesirable = false;
+  for (const roll of matchingRolls) {
+    const perksForThisRoll = getWishListPlugs(item, roll);
+    matchingRollsData.push({
+      wishListPerks: perksForThisRoll,
+      isUndesirable: roll.isUndesirable,
+      notes: roll.notes,
+    });
+    for (const perkHash of perksForThisRoll) {
+      wishListPerks.add(perkHash);
+    }
+    if (roll.notes) {
+      notesSet.add(roll.notes);
+    }
+    if (roll.isUndesirable) {
+      isUndesirable = true;
+    }
+  }
+  return {
+    wishListPerks,
+    notes: notesSet.size > 0 ? Array.from(notesSet).join('\n\n---\n\n') : undefined,
+    isUndesirable,
+    matchingRolls: matchingRollsData,
+  };
 }

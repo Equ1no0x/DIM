@@ -47,6 +47,10 @@ module.exports = function (api) {
     ],
   ];
 
+  // Compile TS via babel in all environments. Type checking is covered by
+  // `pnpm typecheck` (tsc --noEmit).
+  plugins.push(['@babel/plugin-transform-typescript', { optimizeConstEnums: true }]);
+
   if (isProduction) {
     plugins.push(
       // Optimize React components at the cost of some memory by automatically
@@ -59,9 +63,6 @@ module.exports = function (api) {
     if (!isTest) {
       plugins.push('react-refresh/babel');
     }
-
-    // In dev, compile TS with babel
-    plugins.push(['@babel/plugin-transform-typescript', { optimizeConstEnums: true }]);
   }
 
   const presetEnvOptions = {

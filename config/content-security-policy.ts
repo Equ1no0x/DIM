@@ -17,6 +17,10 @@ export default function csp(
       SELF,
       'https://*.googletagmanager.com',
       'https://*.google-analytics.com',
+      // Google OAuth scripts
+      'https://accounts.google.com',
+      'https://www.gstatic.com',
+      'https://apis.google.com',
       // OpenCollective backers
       'https://opencollective.com',
     ],
@@ -50,6 +54,9 @@ export default function csp(
       featureFlags.elgatoStreamDeck && 'http://localhost:9120',
       // Game2Give
       featureFlags.issueBanner && 'https://bungiefoundation.donordrive.com',
+      // Google OAuth / Drive API
+      'https://accounts.google.com',
+      'https://www.googleapis.com',
     ].filter((s) => s !== false),
     imgSrc: [
       SELF,
@@ -71,6 +78,8 @@ export default function csp(
     ],
     childSrc: [SELF],
     frameSrc: [
+      // Google OAuth iframe
+      'https://accounts.google.com',
       // OpenCollective backers
       'https://opencollective.com',
       // Mastodon feed

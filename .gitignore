@@ -24,3 +24,6 @@ eslint.results.json
 /sonda-report.html
 sonda-report/
 .claude/
+.continue/
+.agents/
+skills-lock.json

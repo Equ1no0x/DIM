@@ -25,32 +25,57 @@ export default function ApplyPerkSelection({
   const destiny2CoreSettings = useSelector(destiny2CoreSettingsSelector)!;
   const [insertInProgress, setInsertInProgress] = useState(false);
   const wishlistRoll = useSelector(wishListSelector(item));
-  if (!item.sockets) {
+  const sockets = item.sockets;
+  if (!sockets) {
     return null;
   }
 
   const plugOverridesToSave: { socket: DimSocket; plugHash: number }[] = [];
-  const wishListSocketChanges: { socket: DimSocket; plugHash: number }[] = [];
-  for (const socket of item.sockets.allSockets) {
-    // Find wishlist perks that aren't selected
-    if (
-      wishlistRoll &&
-      !wishlistRoll.isUndesirable &&
-      socket.isPerk &&
-      socket.plugOptions.length > 1
-    ) {
-      const wishlistPlug = socket.plugOptions.find((p) =>
-        wishlistRoll.wishListPerks.has(p.plugDef.hash),
-      );
-      if (
-        wishlistPlug &&
-        socket.actuallyPlugged !== wishlistPlug &&
-        socket.plugged !== wishlistPlug
-      ) {
-        wishListSocketChanges.push({ socket, plugHash: wishlistPlug.plugDef.hash });
+  let wishListSocketChanges: { socket: DimSocket; plugHash: number }[] = [];
+
+  if (wishlistRoll && !wishlistRoll.isUndesirable && wishlistRoll.matchingRolls.length > 0) {
+    // Find if any roll matches current selection
+    const currentRollIndex = wishlistRoll.matchingRolls.findIndex((roll) => {
+      for (const socket of sockets.allSockets) {
+        if (socket.isPerk && socket.plugOptions.length > 1) {
+          const wishlistPlug = socket.plugOptions.find((p) =>
+            roll.wishListPerks.has(p.plugDef.hash),
+          );
+          if (wishlistPlug && socket.plugged !== wishlistPlug) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+
+    // Start searching from the next roll to enable cycling
+    const startSearchIndex = (currentRollIndex + 1) % wishlistRoll.matchingRolls.length;
+
+    for (let i = 0; i < wishlistRoll.matchingRolls.length; i++) {
+      const index = (startSearchIndex + i) % wishlistRoll.matchingRolls.length;
+      const roll = wishlistRoll.matchingRolls[index];
+      if (!roll.isUndesirable) {
+        const changes: { socket: DimSocket; plugHash: number }[] = [];
+        for (const socket of sockets.allSockets) {
+          if (socket.isPerk && socket.plugOptions.length > 1) {
+            const wishlistPlug = socket.plugOptions.find((p) =>
+              roll.wishListPerks.has(p.plugDef.hash),
+            );
+            if (wishlistPlug && socket.plugged !== wishlistPlug) {
+              changes.push({ socket, plugHash: wishlistPlug.plugDef.hash });
+            }
+          }
+        }
+        if (changes.length > 0) {
+          wishListSocketChanges = changes;
+          break;
+        }
       }
     }
+  }
 
+  for (const socket of sockets.allSockets) {
     if (
       !item.vendor &&
       socket.actuallyPlugged &&

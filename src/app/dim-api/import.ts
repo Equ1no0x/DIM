@@ -67,7 +67,7 @@ export function importDataBackup(data: ExportResponse, silent = false): ThunkRes
   };
 }
 
-function importBackupIntoLocalState(data: ExportResponse, silent = false): ThunkResult {
+export function importBackupIntoLocalState(data: ExportResponse, silent = false): ThunkResult {
   return async (dispatch, getState) => {
     const settings = data.settings;
     const loadouts = extractLoadouts(data);

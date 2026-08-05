@@ -10,7 +10,6 @@ import { allItemsSelector } from 'app/inventory/selectors';
 import { useLoadStores } from 'app/inventory/store/hooks';
 import WishListSettings from 'app/settings/WishListSettings';
 import { useIsPhonePortrait } from 'app/shell/selectors';
-import DimApiSettings from 'app/storage/DimApiSettings';
 import { useThunkDispatch } from 'app/store/thunk-dispatch';
 import StreamDeckSettings from 'app/stream-deck/StreamDeckSettings/StreamDeckSettings';
 import { clearAppBadge } from 'app/utils/app-badge';
@@ -27,6 +26,7 @@ import ErrorBoundary from '../dim-ui/ErrorBoundary';
 import '../inventory-page/StoreBucket.scss';
 import InventoryItem from '../inventory/InventoryItem';
 import { AppIcon, lockIcon, unlockedIcon } from '../shell/icons';
+import GoogleDriveSettings from '../storage/GoogleDriveSettings';
 import CharacterOrderEditor from './CharacterOrderEditor';
 import Checkbox from './Checkbox';
 import { CustomStatsSettings } from './CustomStatsSettings';
@@ -94,6 +94,7 @@ export default function SettingsPage() {
     wishListPerks: new Set<number>(),
     notes: undefined,
     isUndesirable: false,
+    matchingRolls: [],
   };
 
   const onCheckChange = (checked: boolean, name: keyof Settings) => {
@@ -595,7 +596,7 @@ export default function SettingsPage() {
           {$featureFlags.wishLists && <WishListSettings />}
 
           <ErrorBoundary name="StorageSettings">
-            <DimApiSettings />
+            <GoogleDriveSettings />
           </ErrorBoundary>
 
           <Spreadsheets />

@@ -219,6 +219,10 @@ function buildDefinedSockets(
 }
 
 function filterReusablePlug(reusablePlug: DimPlug) {
+  const hash = reusablePlug.plugDef.hash;
+  // TODO: Investigate hash 29505215 — was hardcoded globally excluded,
+  // causing guaranteed red triangles for any wishlist entry recommending it.
+  // Confirm if it's a genuinely broken plug or unintentionally overbroad exclusion.
   return (
     !reusablePlug.plugDef.itemCategoryHashes?.some(
       (ich) =>

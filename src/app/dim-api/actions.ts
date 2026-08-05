@@ -185,6 +185,17 @@ export function loadDimApiData(
 ): ThunkResult {
   return async (dispatch, getState) => {
     const { forceLoad = false } = options;
+
+    // Google Drive sync enabled → skip ALL DIM API calls entirely.
+    // Never talk to api.destinyitemmanager.com - use Drive instead.
+    if (localStorage.getItem('google-drive-sync-enabled') === 'true') {
+      localStorage.setItem('dim-api-enabled', 'false');
+      await dispatch(loadProfileFromIndexedDB());
+      readyResolve();
+      installObservers(dispatch);
+      return;
+    }
+
     installApiPermissionObserver(dispatch);
 
     // Load from indexedDB if needed
@@ -314,10 +325,41 @@ function profileLastLoaded(dimApi: DimApiState, account: DestinyAccount | undefi
 let flushUpdatesBackoff = 0;
 
 /**
- * Process the queue of updates by sending them to the server
+ * Process the queue of updates.
+ * If Google Drive sync is enabled: upload current state to Drive.
+ * Otherwise: send updates to DIM API server.
  */
 function flushUpdates(): ThunkResult<boolean> {
   return async (dispatch, getState) => {
+    // Google Drive sync enabled → upload to Drive instead of DIM API
+    if (localStorage.getItem('google-drive-sync-enabled') === 'true') {
+      try {
+        const { googleDriveService } = await import('app/storage/google-drive-service');
+        if (!googleDriveService.isAuthenticated()) {
+          infoLog(TAG, 'Google Drive not authenticated, queueing re-auth');
+          showNotification({
+            type: 'warning',
+            title: t('Storage.NotAuthenticated'),
+            body: t('Storage.GoogleDriveSyncError'),
+            duration: 10000,
+          });
+          void googleDriveService.authenticate();
+          return false;
+        }
+        infoLog(TAG, 'Flushing updates to Google Drive...');
+        const { exportLocalData } = await import('app/storage/export-data');
+        const currentState = await dispatch(exportLocalData());
+        await googleDriveService.saveBackup(currentState);
+        localStorage.setItem('google-drive-last-local-sync', new Date().toISOString());
+        infoLog(TAG, 'Flushed updates to Google Drive');
+        return true;
+      } catch (e) {
+        errorLog(TAG, 'Failed to flush updates to Google Drive', e);
+        return false;
+      }
+    }
+
+    // DIM API path (original behavior)
     let dimApiState = getState().dimApi;
 
     // Skip flushing state if the API is disabled
@@ -380,33 +422,112 @@ function flushUpdates(): ThunkResult<boolean> {
       (async () => {
         infoLog(TAG, 'Waiting', waitTime, 'ms before re-attempting updates');
         await delay(waitTime);
-
-        // Now mark the queue failed so it can be retried. Until
-        // updateInProgressWatermark gets reset no other flushUpdates call will
-        // do anything.
         dispatch(flushUpdatesFailed());
-
-        // Try again
         dispatch(flushUpdates());
       })();
 
-      // The failure is fully handled here (logged, user notified, retry scheduled), so
-      // return false rather than rethrowing. flushUpdates is mostly dispatched
-      // fire-and-forget, and rethrowing turned a handled failure into an unhandled
-      // promise rejection that got reported to Sentry as noise.
       return false;
     }
   };
 }
 
+/**
+ * Load profile data on page load.
+ *
+ * Behavior mirrors DIM API flow:
+ * 1. Always load IDB first (keeps app working immediately)
+ * 2. If GDrive sync enabled → check authentication
+ *    - Not authenticated → stay with IDB data (user needs to auth via Settings)
+ *    - Authenticated → compare Drive vs local, sync newer direction
+ * 3. If GDrive not enabled → IDB only, done
+ */
 function loadProfileFromIndexedDB(): ThunkResult {
   return async (dispatch, getState) => {
     if (getState().dimApi.profileLoadedFromIndexedDb) {
       return;
     }
 
-    const profile = await get<ProfileIndexedDBState | undefined>('dim-api-profile');
-    dispatch(profileLoadedFromIDB(profile));
+    // Always load IDB first - app works immediately with local data
+    const idbProfile = await get<ProfileIndexedDBState | undefined>('dim-api-profile');
+    dispatch(profileLoadedFromIDB(idbProfile));
+    infoLog(TAG, idbProfile ? 'Loaded profile from IDB' : 'No IDB profile found');
+
+    const googleDriveSyncEnabled = localStorage.getItem('google-drive-sync-enabled') === 'true';
+    if (!googleDriveSyncEnabled) {
+      // GDrive not enabled - IDB is source of truth, done
+      return;
+    }
+
+    // GDrive enabled - check auth
+    try {
+      const { googleDriveService } = await import('app/storage/google-drive-service');
+      await googleDriveService.initialize();
+
+      if (!googleDriveService.isAuthenticated()) {
+        // Not authenticated - keep IDB data, user needs to auth via Settings
+        infoLog(TAG, 'Google Drive sync enabled but not authenticated. Using IDB data.');
+        return;
+      }
+
+      // Authenticated - compare Drive vs local timestamps
+      infoLog(TAG, 'Google Drive authenticated. Checking sync state...');
+      const driveModifiedTime = await googleDriveService.getLastSyncTime();
+      const localLastSync = localStorage.getItem('google-drive-last-local-sync');
+      const localModifiedTime = localLastSync ? new Date(localLastSync) : null;
+
+      infoLog(TAG, 'Drive modified:', driveModifiedTime, '| Local last sync:', localModifiedTime);
+
+      if (!localModifiedTime || (driveModifiedTime && driveModifiedTime > localModifiedTime)) {
+        if (getState().dimApi.updateQueue.length > 0) {
+          infoLog(TAG, 'Skipping Drive overwrite because local updates are still queued');
+          showNotification({
+            type: 'warning',
+            title: t('Storage.SyncError'),
+            body: 'Local changes are still syncing; Drive data was not overwritten.',
+            duration: 10000,
+          });
+          return;
+        }
+
+        // Drive is newer or never synced - download from Drive
+        infoLog(TAG, 'Drive is newer. Downloading...');
+        const driveData = await googleDriveService.loadBackup();
+
+        if (driveData) {
+          const profile: ProfileIndexedDBState = {
+            settings: (driveData as any).settings ?? {},
+            profiles: (driveData as any).profiles ?? {},
+            updateQueue: [],
+            itemHashTags: (driveData as any).itemHashTags ?? {},
+            searches: (driveData as any).searches ?? {},
+            globalSettings: getState().dimApi.globalSettings,
+          };
+          // Override IDB data with Drive data
+          dispatch(profileLoadedFromIDB(profile));
+          localStorage.setItem('google-drive-last-local-sync', new Date().toISOString());
+          infoLog(TAG, 'Loaded profile from Google Drive');
+        } else {
+          // No Drive backup yet - upload local IDB data to Drive
+          infoLog(TAG, 'No Drive backup found. Uploading local data to Drive...');
+          const { exportLocalData } = await import('app/storage/export-data');
+          const currentState = await (dispatch as any)(exportLocalData());
+          await googleDriveService.saveBackup(currentState);
+          localStorage.setItem('google-drive-last-local-sync', new Date().toISOString());
+          infoLog(TAG, 'Uploaded local data to Drive');
+        }
+      } else {
+        // Local is newer - upload to Drive
+        infoLog(TAG, 'Local is newer. Uploading to Drive...');
+        const { exportLocalData } = await import('app/storage/export-data');
+        const currentState = await (dispatch as any)(exportLocalData());
+        await googleDriveService.saveBackup(currentState);
+        localStorage.setItem('google-drive-last-local-sync', new Date().toISOString());
+        infoLog(TAG, 'Uploaded local data to Drive');
+      }
+    } catch (e) {
+      // Drive sync failed - keep IDB data, log error
+      errorLog(TAG, 'Google Drive sync failed on load, keeping IDB data', e);
+    }
   };
 }
 

@@ -1,20 +1,24 @@
 import ExternalLink from 'app/dim-ui/ExternalLink';
 import { PressTip } from 'app/dim-ui/PressTip';
 import { t } from 'app/i18next-t';
-import { DimItem, DimPlug, DimSocket } from 'app/inventory/item-types';
+import { DimItem } from 'app/inventory/item-types';
 import Plug from 'app/item-popup/Plug';
 import { useD2Definitions } from 'app/manifest/selectors';
 import { faExclamationTriangle } from 'app/shell/icons';
 import AppIcon from 'app/shell/icons/AppIcon';
 import { compareBy } from 'app/utils/comparators';
-import { isEnhancedPerkHash } from 'app/utils/perk-utils';
-import { wishListInfosSelector, wishListRollsForItemHashSelector } from 'app/wishlists/selectors';
+import { normalizeToUnenhanced } from 'app/utils/perk-utils';
+import {
+  wishListInfosSelector,
+  wishListRollsForItemHashSelector,
+  wishListSelector,
+} from 'app/wishlists/selectors';
 import { WishListRoll } from 'app/wishlists/types';
+import { InventoryWishListRoll } from 'app/wishlists/wishlists';
 import { partition } from 'es-toolkit';
 import { useSelector } from 'react-redux';
 import * as styles from './AllWishlistRolls.m.scss';
 import { getCraftingTemplate } from './crafting-utils';
-import { consolidateRollsForOneWeapon, consolidateSecondaryPerks } from './wishlist-collapser';
 
 /**
  * List out all the known wishlist rolls for a given item.
@@ -36,6 +40,7 @@ export default function AllWishlistRolls({
   realAvailablePlugHashes?: number[];
 }) {
   const wishlistRolls = useSelector(wishListRollsForItemHashSelector(item.hash));
+  const wishlistRoll = useSelector(wishListSelector(item));
   const [goodRolls, badRolls] = partition(wishlistRolls, (r) => !r.isUndesirable);
 
   return (
@@ -46,6 +51,7 @@ export default function AllWishlistRolls({
           <WishlistRolls
             item={item}
             wishlistRolls={goodRolls}
+            wishlistRoll={wishlistRoll}
             realAvailablePlugHashes={realAvailablePlugHashes}
           />
         </>
@@ -56,6 +62,7 @@ export default function AllWishlistRolls({
           <WishlistRolls
             item={item}
             wishlistRolls={badRolls}
+            wishlistRoll={wishlistRoll}
             realAvailablePlugHashes={realAvailablePlugHashes}
           />
         </>
@@ -71,6 +78,7 @@ function WishlistRolls({
 }: {
   wishlistRolls: WishListRoll[];
   item: DimItem;
+  wishlistRoll?: InventoryWishListRoll;
   /**
    * non-plugged, but available, plugs, from the real item this was spawned from.
    * used to mark sockets as available
@@ -83,26 +91,25 @@ function WishlistRolls({
 
   const templateSockets = getCraftingTemplate(defs, item.hash)?.sockets?.socketEntries;
 
-  const socketByPerkHash: Record<number, DimSocket> = {};
-  const plugByPerkHash: Record<number, DimPlug> = {};
   // the order, within their column, that perks appear. for sorting barrels mags etc.
   const columnOrderByPlugHash: Record<number, number> = {};
 
   if (item.sockets) {
     for (const s of item.sockets.allSockets) {
       if (s.isReusable) {
-        for (const p of s.plugOptions) {
-          socketByPerkHash[p.plugDef.hash] = s;
-          plugByPerkHash[p.plugDef.hash] = p;
-        }
-
         // if this is a crafted item, use its template's plug order. otherwise fall back to its reusable or randomized plugsets
         const plugSetHash =
           templateSockets?.[s.socketIndex].reusablePlugSetHash ??
           (s.socketDefinition.randomizedPlugSetHash || s.socketDefinition.reusablePlugSetHash);
 
         if (plugSetHash) {
-          const plugItems = defs.PlugSet.get(plugSetHash).reusablePlugItems;
+          const plugSet = defs.PlugSet.get(plugSetHash);
+          if (!plugSet) {
+            console.warn(
+              `Armory: PlugSet ${plugSetHash} not found in manifest for socket ${s.socketIndex}`,
+            );
+          }
+          const plugItems = plugSet?.reusablePlugItems ?? [];
           for (let i = 0; i < plugItems.length; i++) {
             const plugItem = plugItems[i];
             if (plugItem.currentlyCanRoll) {
@@ -114,7 +121,13 @@ function WishlistRolls({
     }
   }
 
-  // TODO: group by making a tree of least cardinality -> most?
+  // All plug hashes present anywhere on the weapon (normalized), used to detect
+  // wishlist hashes that don't correspond to any plug on this weapon.
+  const allWeaponPlugHashesNormalized = new Set(
+    (item.sockets?.allSockets ?? []).flatMap((s) =>
+      s.plugOptions.map((p) => normalizeToUnenhanced(p.plugDef.hash)),
+    ),
+  );
 
   const spentTitles = new Set<string>();
   function spendTitle(roll: WishListRoll) {
@@ -133,81 +146,87 @@ function WishlistRolls({
   return (
     <>
       {Object.entries(groupedWishlistRolls).map(([notes, rolls]) => {
-        const consolidatedRolls = consolidateRollsForOneWeapon(defs, item, rolls);
+        if (!rolls?.length) return null;
+
+        // Collect all wishlisted perk hashes across all rolls in this section,
+        // normalised so that base and enhanced perk variants are treated as equivalent.
+        const wishlistedNormalizedHashes = new Set(
+          rolls.flatMap((r) => [...r.recommendedPerks].map(normalizeToUnenhanced)),
+        );
+        const isWishlisted = (hash: number) =>
+          wishlistedNormalizedHashes.has(normalizeToUnenhanced(hash));
+
+        // Find reusable sockets that contain at least one wishlisted perk, sorted by socketIndex.
+        // This produces one visual column per relevant socket — barrels, mags, traits, etc.
+        const relevantSockets = (item.sockets?.allSockets ?? [])
+          .filter((s) => s.isReusable && s.plugOptions.some((p) => isWishlisted(p.plugDef.hash)))
+          .sort((a, b) => a.socketIndex - b.socketIndex);
+
+        // Wishlist hashes that don't exist in any plug slot on this weapon at all.
+        // Shown as InvalidPlug warnings so the user knows the wishlist references an unknown perk.
+        const unmatchedHashes = [
+          ...new Set(
+            rolls
+              .flatMap((r) => [...r.recommendedPerks])
+              .filter((h) => !allWeaponPlugHashesNormalized.has(normalizeToUnenhanced(h))),
+          ),
+        ];
+
+        if (!relevantSockets.length && !unmatchedHashes.length) return null;
+
+        // Sort each socket's plugOptions by crafting-template column order so the
+        // visual row order is stable across sections.
+        const sortedColumns = relevantSockets.map((s) =>
+          [...s.plugOptions].sort(compareBy((p) => columnOrderByPlugHash[p.plugDef.hash] ?? 9999)),
+        );
+
+        // One row per slot: max plug count across all columns.
+        const numRows = relevantSockets.length
+          ? Math.max(...sortedColumns.map((col) => col.length))
+          : 0;
+
+        const wishlistUrl =
+          rolls[0].sourceWishListIndex !== undefined
+            ? wishlistInfos?.[rolls[0].sourceWishListIndex]?.url
+            : undefined;
 
         return (
           <div key={notes} className={styles.rollGroup}>
             {spendTitle(rolls[0])}
             <p className={styles.notes}>{notes}</p>
             <ul>
-              {consolidatedRolls.map((cr) => {
-                // groups [outlaw, enhanced outlaw, rampage]
-                // into {
-                //   "3": [outlaw, enhanced outlaw]
-                //   "4": [rampage]
-                // }
-                const primariesGroupedByColumn = Object.groupBy(
-                  cr.commonPrimaryPerks,
-                  (h) => socketByPerkHash[h]?.socketIndex ?? -1,
-                );
-
-                // turns the above into
-                // [[outlaw, enhanced outlaw], [rampage]]
-                const primaryBundles = cr.rolls[0].primarySocketIndices.map((socketIndex) =>
-                  primariesGroupedByColumn[socketIndex ?? -1].sort(
-                    // establish a consistent base -> enhanced perk order
-                    compareBy((h) => Number(isEnhancedPerkHash(h))),
-                  ),
-                );
-
-                // i.e.
-                // [
-                //   [[drop mag], [smallbore, extended barrel]],
-                //   [[tac mag], [rifled barrel, extended barrel]]
-                // ]
-                const consolidatedSecondaries = consolidateSecondaryPerks(cr.rolls);
-                // if there were no secondary perks in any of the rolls,
-                // consolidateSecondaryPerks will *correctly* return an array with no permutations.
-                // if so, we'll add a blank dummy one so there's something to iterate below.
-                if (!consolidatedSecondaries.length) {
-                  consolidatedSecondaries.push([]);
-                }
-
-                return consolidatedSecondaries.map((secondaryBundle) => {
-                  const bundles = [...secondaryBundle, ...primaryBundles];
-                  return (
-                    <li key={bundles.map((b) => b.join()).join()} className={styles.roll}>
-                      {bundles.map((hashes) => (
-                        <div key={hashes.join()} className={styles.orGroup}>
-                          {hashes
-                            .sort(
-                              compareBy(
-                                // unrecognized/unrollable perks sort to last
-                                (h) => columnOrderByPlugHash[h] ?? 9999,
-                              ),
-                            )
-                            .map((h) => {
-                              const socket = socketByPerkHash[h];
-                              const plug = plugByPerkHash[h];
-                              return plug && socket ? (
-                                <Plug
-                                  key={plug.plugDef.hash}
-                                  plug={plug}
-                                  item={item}
-                                  socketInfo={socket}
-                                  hasMenu={false}
-                                  notSelected={realAvailablePlugHashes?.includes(plug.plugDef.hash)}
-                                />
-                              ) : (
-                                <InvalidPlug key={h} hash={h} />
-                              );
-                            })}
-                        </div>
-                      ))}
-                    </li>
-                  );
-                });
-              })}
+              {Array.from({ length: numRows }, (_, rowIdx) => (
+                <li key={rowIdx} className={styles.roll}>
+                  {sortedColumns.map((column, colIdx) => {
+                    const socket = relevantSockets[colIdx];
+                    const plug = column[rowIdx];
+                    return (
+                      <div key={socket.socketIndex} className={styles.orGroup}>
+                        {plug && (
+                          <Plug
+                            plug={plug}
+                            item={item}
+                            socketInfo={socket}
+                            hasMenu={false}
+                            // highlighted = wishlisted; dimmed = available on item but not wishlisted
+                            plugged={isWishlisted(plug.plugDef.hash)}
+                            notSelected={realAvailablePlugHashes?.includes(plug.plugDef.hash)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </li>
+              ))}
+              {unmatchedHashes.length > 0 && (
+                <li key="unmatched" className={styles.roll}>
+                  {unmatchedHashes.map((hash) => (
+                    <div key={hash} className={styles.orGroup}>
+                      <InvalidPlug hash={hash} item={item} wishlistUrl={wishlistUrl} />
+                    </div>
+                  ))}
+                </li>
+              )}
             </ul>
           </div>
         );
@@ -216,14 +235,25 @@ function WishlistRolls({
   );
 }
 
-function InvalidPlug({ hash }: { hash: number }) {
+function InvalidPlug({
+  hash,
+  item,
+  wishlistUrl,
+}: {
+  hash: number;
+  item: DimItem;
+  wishlistUrl?: string;
+}) {
   const defs = useD2Definitions();
   const perkName = defs?.InventoryItem.get(hash)?.displayProperties.name;
+  const itemName = defs?.InventoryItem.get(item.hash)?.displayProperties.name;
+  const tooltip = [
+    t('Armory.UnknownPerkHash', { hash, perkName: perkName ?? t('Armory.Unknown') }),
+    itemName ? `\n${itemName}` : '',
+    wishlistUrl ? `\n${wishlistUrl}` : '',
+  ].join('');
   return (
-    <PressTip
-      tooltip={t('Armory.UnknownPerkHash', { hash, perkName: perkName ?? t('Armory.Unknown') })}
-      className={styles.invalidPlug}
-    >
+    <PressTip tooltip={tooltip} className={styles.invalidPlug}>
       <AppIcon icon={faExclamationTriangle} />
     </PressTip>
   );
