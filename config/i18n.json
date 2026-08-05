@@ -13,7 +13,7 @@
     "Title": "Accounts",
     "NoCharacters": "You have no Destiny characters associated with this Bungie.net account. Try logging into a different account.",
     "ErrorLoading": "Unable to load Destiny accounts from Bungie.net",
-    "MissingAccountWarning": "If you don't see your account here, you may not have logged in to the right Bungie.net account, or Bungie.net may be down for maintenance.",
+    "MissingAccountWarning": "If you don't see your account here, you may not have logged in to the right Bungie.net account, or Bungie.net may be down for maintenance. DIM cannot load PS3 or Xbox 360 Destiny 1 accounts.",
     "MissingTitle": "Account Not Found",
     "MissingDescription": "The account you're trying to view is not an account linked to your Bungie.net profile. Select one of your accounts below.",
     "ErrorLoadInventory": "Unable to load your Destiny {{version}} characters and inventory",
@@ -59,7 +59,8 @@
     "Reputation": "Reputation",
     "Unknown": "Unknown",
     "Vault": "Vault",
-    "Weapons": "Weapons"
+    "Weapons": "Weapons",
+    "Artifact": "Artifact"
   },
   "BulkNote": {
     "Title_one": "Change notes for 1 item",
@@ -154,7 +155,8 @@
     "Description": "Try loading your inventory in the Destiny 2 Companion App to see if Bungie.net is down.",
     "Troubleshooting": "Troubleshooting Guide",
     "SystemDown": "This affects all Destiny apps, and the DIM team cannot fix or bypass it.",
-    "ReadTheGuide": "Read our User Guide (linked from the menu) for troubleshooting steps."
+    "ReadTheGuide": "Read our User Guide (linked from the menu) for troubleshooting steps.",
+    "TranslateExtension": "Disable automatic translation as it can break DIM and other apps."
   },
   "FarmingMode": {
     "Vault": "It will move items to the vault to make room.",
@@ -625,6 +627,7 @@
     "AddStack": "Add another copy of this mod",
     "RemoveStack": "Remove a copy of this mod",
     "SelectSubclassOptions": "Customize subclass",
+    "SelectArtifactOptions": "Customize artifact",
     "ShowAllConfigs": "Show all configurations",
     "ShowConfigs": "Show configurations",
     "ShowGear": "{{class}} Armor",
@@ -919,7 +922,7 @@
     "EquipItems": "Equipping items",
     "EquipInGameLoadout": "Equipping in-game loadout",
     "ApplyInGameLoadoutInGame": "Your loadout is ready to equip but since you're in an activity you need to equip it in-game.",
-    "SocketOverrides": "Changing subclass options",
+    "SocketOverrides": "Changing subclass/artifact options",
     "ApplyMods": "Applying mods",
     "ClearingSpace": "Moving other items away",
     "Succeeded": "Loadout succeeded",
