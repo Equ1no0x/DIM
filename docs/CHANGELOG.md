@@ -1,5 +1,15 @@
 ## Next
 
+* Added a share button to the loadout edit sheet.
+* Add basic handling for using Artifacts in loadouts
+* Show chronologs under the vault instead of silver.
+* Add error advice to turn off auto translation.
+* Add a warning about PS3/XB360 not happening
+* Perks with more than one option are now shift-clickable in Organizer.
+* Most places that support shift-click (sorting columns in Compare, selecting pills in Loadouts and Bounties) now also support long-press on mobile.
+
+## 8.136.0 <span class="changelog-date">(2026-08-02)</span>
+
 ## 8.135.0 <span class="changelog-date">(2026-07-26)</span>
 
 * In Loadout Optimizer, set bonuses are now searchable. They also always show up in a single column instead of side-by-side.
