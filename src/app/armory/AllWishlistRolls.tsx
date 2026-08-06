@@ -156,10 +156,16 @@ function WishlistRolls({
         const isWishlisted = (hash: number) =>
           wishlistedNormalizedHashes.has(normalizeToUnenhanced(hash));
 
-        // Find reusable sockets that contain at least one wishlisted perk, sorted by socketIndex.
-        // This produces one visual column per relevant socket — barrels, mags, traits, etc.
+        // A plug is a "match" if it is both wishlisted and present on the user's specific item.
+        // When there is no real-item context (realAvailablePlugHashes is undefined),
+        // fall back to showing all wishlisted plugs the weapon type can roll.
+        const isMatch = (hash: number) =>
+          isWishlisted(hash) &&
+          (!realAvailablePlugHashes || realAvailablePlugHashes.includes(hash));
+
+        // One column per socket that has at least one matching plug, sorted by socketIndex.
         const relevantSockets = (item.sockets?.allSockets ?? [])
-          .filter((s) => s.isReusable && s.plugOptions.some((p) => isWishlisted(p.plugDef.hash)))
+          .filter((s) => s.isReusable && s.plugOptions.some((p) => isMatch(p.plugDef.hash)))
           .sort((a, b) => a.socketIndex - b.socketIndex);
 
         // Wishlist hashes that don't exist in any plug slot on this weapon at all.
@@ -174,13 +180,15 @@ function WishlistRolls({
 
         if (!relevantSockets.length && !unmatchedHashes.length) return null;
 
-        // Sort each socket's plugOptions by crafting-template column order so the
-        // visual row order is stable across sections.
+        // Each column contains only the matching plugs for that socket,
+        // sorted by crafting-template column order for stable row positions.
         const sortedColumns = relevantSockets.map((s) =>
-          [...s.plugOptions].sort(compareBy((p) => columnOrderByPlugHash[p.plugDef.hash] ?? 9999)),
+          [...s.plugOptions]
+            .filter((p) => isMatch(p.plugDef.hash))
+            .sort(compareBy((p) => columnOrderByPlugHash[p.plugDef.hash] ?? 9999)),
         );
 
-        // One row per slot: max plug count across all columns.
+        // One row per matching plug: max match count across all columns.
         const numRows = relevantSockets.length
           ? Math.max(...sortedColumns.map((col) => col.length))
           : 0;
@@ -208,9 +216,8 @@ function WishlistRolls({
                             item={item}
                             socketInfo={socket}
                             hasMenu={false}
-                            // highlighted = wishlisted; dimmed = available on item but not wishlisted
-                            plugged={isWishlisted(plug.plugDef.hash)}
-                            notSelected={realAvailablePlugHashes?.includes(plug.plugDef.hash)}
+                            // all shown plugs are wishlisted matches — always highlighted
+                            plugged={true}
                           />
                         )}
                       </div>
