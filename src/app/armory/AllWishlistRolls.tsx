@@ -171,7 +171,7 @@ function WishlistRolls({
 
         // One column per socket that has at least one matching plug, sorted by socketIndex.
         const relevantSockets = (item.sockets?.allSockets ?? [])
-          .filter((s) => s.isReusable && s.plugOptions.some((p) => isMatch(p.plugDef.hash)))
+          .filter((s) => s.isReusable && s.plugOptions.some((p) => isWishlisted(p.plugDef.hash)))
           .sort((a, b) => a.socketIndex - b.socketIndex);
 
         // Wishlist hashes that don't exist in any plug slot on this weapon at all.
@@ -190,7 +190,7 @@ function WishlistRolls({
         // sorted by crafting-template column order for stable row positions.
         const sortedColumns = relevantSockets.map((s) =>
           [...s.plugOptions]
-            .filter((p) => isMatch(p.plugDef.hash))
+            .filter((p) => isWishlisted(p.plugDef.hash))
             .sort(compareBy((p) => columnOrderByPlugHash[p.plugDef.hash] ?? 9999)),
         );
 
@@ -222,8 +222,8 @@ function WishlistRolls({
                             item={item}
                             socketInfo={socket}
                             hasMenu={false}
-                            // all shown plugs are wishlisted matches — always highlighted
-                            plugged={true}
+                            // highlighted = wishlisted AND on my item; dimmed = wishlisted but not on my item
+                            plugged={isMatch(plug.plugDef.hash)}
                           />
                         )}
                       </div>
