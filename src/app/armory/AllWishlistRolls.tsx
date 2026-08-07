@@ -156,12 +156,18 @@ function WishlistRolls({
         const isWishlisted = (hash: number) =>
           wishlistedNormalizedHashes.has(normalizeToUnenhanced(hash));
 
-        // A plug is a "match" if it is both wishlisted and present on the user's specific item.
-        // When there is no real-item context (realAvailablePlugHashes is undefined),
-        // fall back to showing all wishlisted plugs the weapon type can roll.
+        // Pre-build a normalized set of real item plug hashes for O(1) lookup.
+        // realAvailablePlugHashes is [] (not undefined) when no owned item is available,
+        // so we treat both undefined and empty as "no filter — show all wishlisted plugs".
+        const realItemNormalizedHashes = realAvailablePlugHashes?.length
+          ? new Set(realAvailablePlugHashes.map(normalizeToUnenhanced))
+          : null;
+
+        // A plug is a "match" if it is wishlisted AND present on the user's specific item.
+        // When no real-item context exists (null set), all wishlisted plugs are shown.
         const isMatch = (hash: number) =>
           isWishlisted(hash) &&
-          (!realAvailablePlugHashes || realAvailablePlugHashes.includes(hash));
+          (!realItemNormalizedHashes || realItemNormalizedHashes.has(normalizeToUnenhanced(hash)));
 
         // One column per socket that has at least one matching plug, sorted by socketIndex.
         const relevantSockets = (item.sockets?.allSockets ?? [])
