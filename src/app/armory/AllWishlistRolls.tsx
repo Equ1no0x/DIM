@@ -216,7 +216,7 @@ function WishlistRolls({
                     const plug = column[rowIdx];
                     return (
                       <div key={socket.socketIndex} className={styles.orGroup}>
-                        {plug && (
+                        {plug ? (
                           <Plug
                             plug={plug}
                             item={item}
@@ -225,6 +225,10 @@ function WishlistRolls({
                             // highlighted = wishlisted AND on my item; dimmed = wishlisted but not on my item
                             plugged={isMatch(plug.plugDef.hash)}
                           />
+                        ) : (
+                          // Placeholder keeps column width stable when this socket
+                          // has fewer wishlisted perks than the tallest column.
+                          <div className={styles.emptyPlug} />
                         )}
                       </div>
                     );
