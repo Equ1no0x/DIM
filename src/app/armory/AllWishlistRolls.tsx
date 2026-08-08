@@ -194,11 +194,6 @@ function WishlistRolls({
             .sort(compareBy((p) => columnOrderByPlugHash[p.plugDef.hash] ?? 9999)),
         );
 
-        // One row per matching plug: max match count across all columns.
-        const numRows = relevantSockets.length
-          ? Math.max(...sortedColumns.map((col) => col.length))
-          : 0;
-
         const wishlistUrl =
           rolls[0].sourceWishListIndex !== undefined
             ? wishlistInfos?.[rolls[0].sourceWishListIndex]?.url
@@ -208,43 +203,36 @@ function WishlistRolls({
           <div key={notes} className={styles.rollGroup}>
             {spendTitle(rolls[0])}
             <p className={styles.notes}>{notes}</p>
-            <ul>
-              {Array.from({ length: numRows }, (_, rowIdx) => (
-                <li key={rowIdx} className={styles.roll}>
-                  {sortedColumns.map((column, colIdx) => {
-                    const socket = relevantSockets[colIdx];
-                    const plug = column[rowIdx];
-                    return (
-                      <div key={socket.socketIndex} className={styles.orGroup}>
-                        {plug ? (
-                          <Plug
-                            plug={plug}
-                            item={item}
-                            socketInfo={socket}
-                            hasMenu={false}
-                            // highlighted = wishlisted AND on my item; dimmed = wishlisted but not on my item
-                            plugged={isMatch(plug.plugDef.hash)}
-                          />
-                        ) : (
-                          // Placeholder keeps column width stable when this socket
-                          // has fewer wishlisted perks than the tallest column.
-                          <div className={styles.emptyPlug} />
-                        )}
+            <div className={styles.rollGrid}>
+              {sortedColumns.map((column, colIdx) => {
+                const socket = relevantSockets[colIdx];
+                return (
+                  <div key={socket.socketIndex} className={styles.plugColumn}>
+                    {column.map((plug) => (
+                      <div key={plug.plugDef.hash} className={styles.orGroup}>
+                        <Plug
+                          plug={plug}
+                          item={item}
+                          socketInfo={socket}
+                          hasMenu={false}
+                          // highlighted = wishlisted AND on my item; dimmed = wishlisted but not on my item
+                          plugged={isMatch(plug.plugDef.hash)}
+                        />
                       </div>
-                    );
-                  })}
-                </li>
-              ))}
-              {unmatchedHashes.length > 0 && (
-                <li key="unmatched" className={styles.roll}>
-                  {unmatchedHashes.map((hash) => (
-                    <div key={hash} className={styles.orGroup}>
-                      <InvalidPlug hash={hash} item={item} wishlistUrl={wishlistUrl} />
-                    </div>
-                  ))}
-                </li>
-              )}
-            </ul>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+            {unmatchedHashes.length > 0 && (
+              <div className={styles.roll}>
+                {unmatchedHashes.map((hash) => (
+                  <div key={hash} className={styles.orGroup}>
+                    <InvalidPlug hash={hash} item={item} wishlistUrl={wishlistUrl} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}

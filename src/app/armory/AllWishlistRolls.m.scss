@@ -48,9 +48,15 @@
   margin-bottom: 0.5em;
 }
 
-.emptyPlug {
-  // Same dimensions as a plug icon so empty cells hold their column width.
-  width: calc(#{dim-item-px(30)});
-  height: calc(#{dim-item-px(30)});
-  margin: 1px;
+.rollGrid {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.plugColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
